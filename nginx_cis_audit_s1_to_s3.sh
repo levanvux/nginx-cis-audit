@@ -89,6 +89,50 @@ audit_1_2_2() {
   echo ""
 }
 
+# 2.1 Minimize NGINX Modules
+# 2.1.1 Ensure only required dynamic modules are loaded (Manual)
+audit_2_1_1() {
+  echo -e "${PURPLE}[2.1.1] Ensure only required dynamic modules are loaded${NC}"
+  # Tim xem co dynamic modules nao khong
+  DYNAMIC_MOD=$(sudo nginx -T 2>/dev/null | grep "load_module"| grep -v '^ *#')
+
+  if [ -z "$DYNAMIC_MOD" ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: No dynamic modules were detected."
+  else 
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: The following dynamic modules were detected:"
+    echo -e "${YELLOW} ${DYNAMIC_MOD} ${NC}"
+    echo "REMEDIATION: Identify and comment out (#) unnecessary load_module directives in /etc/nginx/nginx.conf. Validate and apply changes: sudo nginx -t && sudo systemctl reload nginx."
+  fi
+  echo "" 
+ 	
+  echo -e "${PURPLE}[2.1.1.Info] Audit Static Modules${NC}"
+  # Tim cac static modules
+  STATIC_MOD=$(nginx -V 2>&1 | grep -oEi '\-\-(with|without)-[^ ]*')
+  # Kiem tra xem trong STATIC_MOD co modules rui ro nao khong
+  RISKY_STATIC_MOD=$(echo "$STATIC_MOD" | grep -E "http_stub_status_module|http_dav_module|http_random_index_module")
+  
+  echo -e "STATUS: [${BLUE}INFO${NC}]"
+  if [ -z "$RISKY_STATIC_MOD" ]; then
+    echo "Detail: No risky static modules detected."
+  else 
+    echo "Detail: The following sensitive static modules were detected:"
+    echo -e "${YELLOW}${RISKY_STATIC_MOD} ${NC}"
+    echo "REMEDIATION: Ensure directives like 'stub_status' or 'dav_methods' are not enabled in your config unless authorized."
+  fi
+
+  echo ""
+}
+
+# 2.2 Account Security
+# 2.2.1 Ensure that NGINX is run using a non-privileged, dedicated service account (Manual)
+#audit_2_2_1() {
+ 
+#}
+
+
 audit_1_1_1
 audit_1_2_1
 audit_1_2_2
+audit_2_1_1
