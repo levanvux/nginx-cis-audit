@@ -41,4 +41,30 @@ audit_1_1_1() {
   fi
 }
 
+
+# 1.2.1 Ensure package manager repositories are properly configured
+audit_1_2_1() {
+    echo -e "${PURPLE}[1.2.1] Ensure package manager repositories are properly configured${NC}"
+    
+    # Xem nguon package cua NGINX
+    REPO_INFO=$(apt-cache policy nginx 2>/dev/null)
+    
+    if [ -z "$REPO_INFO" ]; then
+        echo -e "STATUS: [${RED}ERROR${NC}]"
+        echo "Detail: Cannot retrieve NGINX repository policy."
+        return 1
+    fi
+
+    # Kiem tra xem co chua cac domain tin cay hay khong
+    if echo "$REPO_INFO" | grep -qE "nginx\.org|ubuntu\.com|debian\.org"; then
+        echo -e "STATUS: [${GREEN}PASS${NC}]"
+        TRUSTED_URL=$(echo "$REPO_INFO" | grep -oP 'https?://\S+' | head -n 1)
+        echo "Detail: NGINX repository is trusted ($TRUSTED_URL)."
+    else
+        echo -e "STATUS: [${RED}FAIL${NC}]"
+        echo "REMEDIATION: Use official NGINX or OS vendor repositories. Check more: apt-cache policy nginx."
+    fi
+}
+
 audit_1_1_1
+audit_1_2_1
