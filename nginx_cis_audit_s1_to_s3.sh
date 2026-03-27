@@ -218,10 +218,45 @@ audit_2_2_3() {
   echo ""
 }
 
+# 2.3 Permissions and Ownership
+# 2.3.1 Ensure NGINX directories and files are owned by root (Manual)
+audit_2_3_1() {
+  echo -e "${PURPLE}[2.3.1] Ensure NGINX directories and files are owned by root${NC}" 
+  
+  # Lay path cua file config nginx
+  # Sau do, lay path cua thu muc cha chua file config do
+  CONF_PATH=$(nginx -V 2>&1 | grep -oP '(?<=--conf-path=)[^ ]+')
+  CONF_DIR=$(dirname "$CONF_PATH") 
+
+  # Kiem tra xem co file config nao khong thuoc so huu cua root:root khong
+  FIND_OUTPUT=$(sudo find "$CONF_DIR" -name "*" \( -not -user root -o -not -group root \) -ls)
+
+  if [ -z "$FIND_OUTPUT" ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: All files and directories in $CONF_DIR are owned by root:root."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: The following files have incorrect ownership:"
+    echo -e " ${YELLOW}${FIND_OUTPUT}${NC}"
+    
+    echo "REMEDIATION: Set the ownership of the NGINX configuration directory to root:"
+    echo -e " ${YELLOW}sudo chown -R root:root $CONF_DIR${NC}"
+  fi
+
+  echo ""
+}
+
+
+
+
 audit_1_1_1
 audit_1_2_1
 audit_1_2_2
+
 audit_2_1_1
+
 audit_2_2_1
 audit_2_2_2
 audit_2_2_3
+
+audit_2_3_1
