@@ -127,12 +127,101 @@ audit_2_1_1() {
 
 # 2.2 Account Security
 # 2.2.1 Ensure that NGINX is run using a non-privileged, dedicated service account (Manual)
-#audit_2_2_1() {
- 
-#}
+audit_2_2_1() {
+  echo -e "${PURPLE}[2.2.1] Ensure NGINX runs as a non-privileged service account${NC}"
+  
+  # Tim user duoc configured
+  CONF_USER=$(sudo nginx -T 2>/dev/null | grep "^user" | awk '{print $2}' | sed 's/;//' | head -n 1)
+  if [ -z "$CONF_USER" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: No specific 'user' directive found in NGINX configuration."
+    echo "REMEDIATION:"
+    echo "1. Create system user: sudo useradd -r -d /var/cache/nginx -s /sbin/nologin nginx"
+    echo "2. Configure NGINX: Set 'user nginx;' in the main context of /etc/nginx/nginx.conf"
+    return
+  fi
 
+  # Lay uid va groups cua user 
+  USER_ID=$(id -u "$CONF_USER" 2>/dev/null)
+  USER_GROUPS=$(id -Gn "$CONF_USER" 2>/dev/null)
+
+  CHECK_SUDO_ACCESS=$(sudo -l -U "$CONF_USER" 2>&1)
+  
+  IS_FAIL=0
+
+  if [ "$USER_ID" -eq 0 ] || [[ "$USER_GROUPS" =~ root ]] || [[ "$USER_GROUPS" =~ sudo ]] || [[ "$SUDO_CHECK" == *"not allowed to run sudo"* ]]; then
+    IS_FAIL=1
+  fi
+
+  if [ "$IS_FAIL" -eq 1 ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: User '${CONF_USER}' has excessive privileges (UID: $USER_ID, Groups: $USER_GROUPS)."
+    
+    echo "REMEDIATION:"
+    echo "1. Harden User: Ensure '${CONF_USER}' is NOT in root/sudo groups."
+    echo "2. Lock User Account: Run the following commands:"
+    echo -e " ${YELLOW}sudo usermod -s /sbin/nologin ${CONF_USER}${NC}"
+    echo -e " ${YELLOW}sudo usermod -L ${CONF_USER}${NC}"
+  else
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: User '${CONF_USER}' (UID: $USER_ID, Groups: $USER_GROUPS) is a non-privileged service account."
+  fi
+
+  echo ""
+}
+
+# 2.2.2 Ensure the NGINX service account is locked (Manual)
+audit_2_2_2() {
+  echo -e "${PURPLE}[2.2.2] Ensure the NGINX service account is locked${NC}"
+  CONF_USER=$(sudo nginx -T 2>/dev/null | grep -i "^user" | awk '{print $2}' | sed 's/;//' | head -n 1)
+  if [ -z "$CONF_USER" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: No NGINX user identified. Please complete Task 2.2.1 first."
+    return
+  fi
+
+  # Check lock status
+  LOCK_STATUS=$(sudo passwd -S "$CONF_USER" 2>/dev/null)
+  if [[ "$LOCK_STATUS" == *" L "* ]] || [[ "$LOCK_STATUS" == *"LK"* ]] || [[ "$LOCK_STATUS" == *"Password locked"* ]]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: Service account '${CONF_USER}' is correctly locked."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: Service account '${CONF_USER}' is not locked."
+    echo -e "REMEDIATION: Lock the account using the passwd command: ${YELLOW}sudo passwd -l ${CONF_USER}${NC}"
+  fi
+ 
+  echo ""
+}
+
+# 2.2.3 Ensure the NGINX service account has an invalid shell
+audit_2_2_3() {
+  echo -e "${PURPLE}[2.2.3] Ensure the NGINX service account has an invalid shell${NC}"
+  CONF_USER=$(sudo nginx -T 2>/dev/null | grep -i "^user" | awk '{print $2}' | sed 's/;//' | head -n 1)
+  if [ -z "$CONF_USER" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: No NGINX user identified. Please check Task 2.2.1."
+    return
+  fi
+  
+  USER_SHELL=$(getent passwd "$CONF_USER" | cut -d: -f7)
+  if [[ "$USER_SHELL" == *"/nologin"* ]] || [[ "$USER_SHELL" == *"/false"* ]]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: User '${CONF_USER}' is correctly restricted with an invalid shell ($USER_SHELL)."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: User '${CONF_USER}' is using an interactive shell ($USER_SHELL)."
+    echo "REMEDIATION: Change the login shell to /sbin/nologin:"
+    echo -e " ${YELLOW}sudo usermod -s /sbin/nologin ${CONF_USER}${NC}"
+  fi
+
+  echo ""
+}
 
 audit_1_1_1
 audit_1_2_1
 audit_1_2_2
 audit_2_1_1
+audit_2_2_1
+audit_2_2_2
+audit_2_2_3
