@@ -227,6 +227,7 @@ audit_2_3_1() {
   # Sau do, lay path cua thu muc cha chua file config do
   CONF_PATH=$(nginx -V 2>&1 | grep -oP '(?<=--conf-path=)[^ ]+')
   CONF_DIR=$(dirname "$CONF_PATH") 
+  [ -z "$CONF_DIR" ] && CONF_DIR="/etc/nginx"
 
   # Kiem tra xem co file config nao khong thuoc so huu cua root:root khong
   FIND_OUTPUT=$(sudo find "$CONF_DIR" -name "*" \( -not -user root -o -not -group root \) -ls)
@@ -246,7 +247,33 @@ audit_2_3_1() {
   echo ""
 }
 
+# 2.3.2 Ensure access to NGINX directories and files is restricted (Manual)
+audit_2_3_2() {
+  echo -e "${PURPLE}[2.3.2] Ensure access to NGINX directories and files is restricted${NC}"
+  CONF_PATH=$(nginx -V 2>&1 | grep -oP '(?<=--conf-path=)[^ ]+')
+  CONF_DIR=$(dirname "$CONF_PATH")
+  [ -z "$CONF_DIR" ] && CONF_DIR="/etc/nginx"
 
+  # Tim cac folder co quyen rong hon 700
+  LOOSE_DIRS=$(sudo find "$CONF_DIR" -type d ! -perm 700)
+  # Tim cac file co quyen rong hon 600 
+  LOOSE_FILES=$(sudo find "$CONF_DIR" -type f ! -perm 600)
+
+  if [ -z "$LOOSE_DIRS" ] && [ -z "$LOOSE_FILES" ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: All NGINX directories and files have restricted permissions (700/600)."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    [ -n "$LOOSE_DIRS" ] && echo -e "Loose directories:\n${YELLOW}${LOOSE_DIRS}${NC}"
+    [ -n "$LOOSE_FILES" ] && echo -e "Loose files:\n${YELLOW}${LOOSE_FILES}${NC}"
+    
+    echo "REMEDIATION: Execute the following commands to restrict access to root only:"
+    echo -e " ${YELLOW}sudo find $CONF_DIR -type d -exec chmod 700 {} +${NC}"
+    echo -e " ${YELLOW}sudo find $CONF_DIR -type f -exec chmod 600 {} +${NC}"
+  fi
+
+  echo ""
+}
 
 
 audit_1_1_1
@@ -260,3 +287,4 @@ audit_2_2_2
 audit_2_2_3
 
 audit_2_3_1
+audit_2_3_2
