@@ -66,5 +66,23 @@ audit_1_2_1() {
     fi
 }
 
+audit_1_2_2() {
+    echo -e "${PURPLE}[1.2.2] Ensure the latest software package is installed${NC}"
+    
+    # Phien ban da cai (Installed) & phien ban moi nhat co san (Candidate)
+    INSTALLED_VER=$(apt-cache policy nginx | grep "Installed:" | awk '{print $2}')
+    CANDIDATE_VER=$(apt-cache policy nginx | grep "Candidate:" | awk '{print $2}')
+
+    if [ "$INSTALLED_VER" == "$CANDIDATE_VER" ]; then
+        echo -e "STATUS: [${GREEN}PASS${NC}]"
+        echo "Detail: NGINX is at the latest version available ($INSTALLED_VER)."
+    else
+        echo -e "STATUS: [${RED}FAIL${NC}]"
+        echo "Detail: Current version ($INSTALLED_VER) is older than available version ($CANDIDATE_VER)."
+        echo "REMEDIATION: Run 'sudo apt update && sudo apt install nginx -y'."
+    fi
+}
+
 audit_1_1_1
 audit_1_2_1
+audit_1_2_2
