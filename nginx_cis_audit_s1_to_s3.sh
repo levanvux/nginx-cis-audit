@@ -275,7 +275,33 @@ audit_2_3_2() {
   echo ""
 }
 
+# 2.3.3 Ensure the NGINX process ID (PID) file is secured (Manual)
+audit_2_3_3() {
+  echo -e "${PURPLE}[2.3.3] Ensure the NGINX process ID (PID) file is secured${NC}"
 
+  # Tim path cua nginx pid file
+  PID_PATH=$(nginx -V 2>&1 | grep -oP '(?<=--pid-path=)[^ ]+')
+  [ -z "$PID_PATH" ] && PID_PATH="/run/nginx.pid"
+
+  PID_INFO=$(stat -c "%U:%G %a" "$PID_PATH")
+  PID_OWNER=$(echo "$PID_INFO" | awk '{print $1}')
+  PID_PERM=$(echo "$PID_INFO" | awk '{print $2}')   
+  
+  if [ "$PID_OWNER" == "root:root" ] && [ "$PID_PERM" -le 644 ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: PID file has correct ownership ($PID_OWNER) and permissions ($PID_PERM)."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: PID file has insecure settings (Owner: $PID_OWNER, Perm: $PID_PERM)."
+    echo "REMEDIATION: Set correct ownership and permissions for the PID file:"
+    echo -e " ${YELLOW}sudo chown root:root $PID_PATH${NC}"
+    echo -e " ${YELLOW}sudo chmod 644 $PID_PATH${NC}"
+  fi
+
+  echo ""
+}
+
+# Goi cac ham audit
 audit_1_1_1
 audit_1_2_1
 audit_1_2_2
@@ -288,3 +314,4 @@ audit_2_2_3
 
 audit_2_3_1
 audit_2_3_2
+audit_2_3_3
