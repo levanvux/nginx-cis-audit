@@ -497,6 +497,35 @@ audit_2_5_2() {
   echo ""
 }
 
+# 2.5.3 Ensure hidden file serving is disabled (Manual)
+audit_2_5_3() {
+  echo -e "${PURPLE}[2.5.3] Ensure hidden file serving is disabled${NC}"  
+
+  # Kiem tra xem co cau hinh quy tac chan file an nao chua
+  HAS_RULE=$(sudo nginx -T 2>/dev/null | grep -vE '^\s*#'| grep -E "location\s+~\s+/\\\.")
+
+  STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/.git/HEAD)
+
+  if [[ -n "$HAS_RULE" && "$STATUS_CODE" =~ ^40[34]$ ]]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: Requests to hidden files are explicitly denied."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: NGINX might serve hidden files."
+    echo "REMEDIATION: Add this block to your server context:"
+    echo -e "  ${YELLOW}# Allow Let's Encrypt (Must be before deny rule)${NC}"
+    echo -e "  ${YELLOW}location ^~ /.well-known/acme-challenge/ { allow all; }${NC}"
+    echo -e "  ${YELLOW}# Deny all other hidden files${NC}"
+    echo -e "  ${YELLOW}location ~ /\. {${NC}"
+    echo -e "  ${YELLOW}    deny all;${NC}"
+    echo -e "  ${YELLOW}    return 404; ${NC}"
+    echo -e "  ${YELLOW}}${NC}"
+  fi
+
+  echo ""
+}
+
+
 # Goi cac ham audit
 audit_1_1_1
 audit_1_2_1
@@ -519,3 +548,4 @@ audit_2_4_4
 
 audit_2_5_1
 audit_2_5_2
+audit_2_5_3
