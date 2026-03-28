@@ -338,9 +338,6 @@ audit_2_4_2() {
   # Lay cac thong tin cau hinh nginx
   CONF_DUMP=$(sudo nginx -T 2>/dev/null)
   
-  # Functional Test: gui req voi Host header gia mao den localhost
-  TEST_RESULT=$(curl -s -I -H "Host: invalid.example.com" http://127.0.0.1 2>&1 | head -n 1)
-
   HAS_DEFAULT=$(echo "$CONF_DUMP" | grep -v '^[[:space:]]*#' | grep -Ei "listen.*default_server")
   HAS_REJECT=$(echo "$CONF_DUMP" | grep -v '^[[:space:]]*#' | grep -Ei "return\s+(444|400|403|421)")
   HAS_SSL_REJECT=$(echo "$CONF_DUMP" | grep -v '^[[:space:]]*#' | grep -Ei "ssl_reject_handshake\s+on")
@@ -438,6 +435,47 @@ audit_2_4_4() {
   echo ""
 }
 
+# 2.5 Information Disclosure
+# 2.5.1 Ensure server_tokens directive is set to `off` (Manual)
+audit_2_5_1() {
+  echo -e "${PURPLE}[2.5.1] Ensure server_tokens directive is set to off${NC}"
+
+  CONF_PATH=$(nginx -V 2>&1 | grep -oP '(?<=--conf-path=)[^ ]+')
+  [ -z "$CONF_PATH" ] && CONF_PATH="/etc/nginx/nginx.conf"
+
+  # Tim xem dong 'server_tokens off;' co trong file cau hinh cua nginx khong
+  TOKENS_CONFIG=$(sudo grep -R "server_tokens" /etc/nginx 2>/dev/null | grep -v "#" | grep -w "off")
+
+  SERVER_HEADER=$(curl -I -s http://localhost 2>/dev/null | grep -i "Server:")
+
+  if [[ -n "$TOKENS_CONFIG" ]] && [[ ! "$SERVER_HEADER" =~ "/" ]]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: server_tokens is set to off. Server header: $SERVER_HEADER"
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: NGINX version is still visible in HTTP headers."
+    echo -e " Current Header: ${YELLOW}${SERVER_HEADER}${NC}"
+    echo "REMEDIATION: "
+    echo -e " 1. Add 'server_tokens off;' to the http block in: ${YELLOW}$CONF_PATH${NC}"
+    echo -e " 2. Test configuration: ${YELLOW}sudo nginx -t${NC}"
+    echo -e " 3. Reload NGINX: ${YELLOW}sudo systemctl reload nginx${NC}"
+  fi
+  echo ""
+}
+
+# 2.5.2 Ensure default error and index.html pages do not reference NGINX (Manual)
+audit_2_5_2() {
+  echo -e "${PURPLE}[2.5.2] Ensure default error/index pages do not reference NGINX${NC}"
+
+  # Kiem tra xem co error_page nao duoc dinh nghia trong cau hinh cua nginx khong
+  ERROR_PAGE_CONF=$(sudo nginx -T 2>/dev/null | grep -vE '^\s*#' | grep -i "error_page")
+  if [ -z "$ERROR_PAGE_CONF" ]; then
+    echo -e "STATUS: [${BLUE}INFO${NC}]"
+    echo "Detail: No custom 'error_page' directives found. Using defaults."
+    echo ""
+  fi
+}
+
 # Goi cac ham audit
 audit_1_1_1
 audit_1_2_1
@@ -457,3 +495,6 @@ audit_2_4_1
 audit_2_4_2
 audit_2_4_3
 audit_2_4_4
+
+audit_2_5_1
+audit_2_5_2
