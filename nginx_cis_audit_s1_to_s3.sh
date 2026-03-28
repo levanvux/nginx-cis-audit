@@ -465,15 +465,36 @@ audit_2_5_1() {
 
 # 2.5.2 Ensure default error and index.html pages do not reference NGINX (Manual)
 audit_2_5_2() {
-  echo -e "${PURPLE}[2.5.2] Ensure default error/index pages do not reference NGINX${NC}"
+  echo -e "${PURPLE}[2.5.2] Ensure default error pages do not reference NGINX${NC}"
 
-  # Kiem tra xem co error_page nao duoc dinh nghia trong cau hinh cua nginx khong
+  # Kiem tra xem co error_page directive nao trong cau hinh cua nginx khong
   ERROR_PAGE_CONF=$(sudo nginx -T 2>/dev/null | grep -vE '^\s*#' | grep -i "error_page")
   if [ -z "$ERROR_PAGE_CONF" ]; then
     echo -e "STATUS: [${BLUE}INFO${NC}]"
     echo "Detail: No custom 'error_page' directives found. Using defaults."
     echo ""
   fi
+
+  # Kiem tra chu 'nginx' co ton tai trong body tra ve cua loi 404 hay khong
+  CHECK_404=$(curl -s http://localhost/non-existent-page-$(date +%s) | grep -io "nginx")
+  
+  if [ -z "$CHECK_404" ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: No NGINX branding found in the error page body."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: The error page still contains NGINX signatures/branding."
+    echo "REMEDIATION:"
+    echo " 1. Create custom generic HTML pages (e.g., /var/www/html/errors/404.html)."
+    echo " 2. Add the following to your NGINX server block:"
+    echo -e "    ${YELLOW}error_page 404 /404.html;${NC}"
+    echo -e "    ${YELLOW}location = /404.html {${NC}"
+    echo -e "    ${YELLOW}    root /var/www/html/errors;${NC}"
+    echo -e "    ${YELLOW}    internal;${NC}"
+    echo -e "    ${YELLOW}}${NC}"
+  fi
+
+  echo ""
 }
 
 # Goi cac ham audit
