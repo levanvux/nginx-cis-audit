@@ -525,6 +525,34 @@ audit_2_5_3() {
   echo ""
 }
 
+# 2.5.4 Ensure the NGINX reverse proxy does not enable information disclosure (Manual)
+audit_2_5_4() {
+  echo -e "${PURPLE}[2.5.4] Ensure NGINX reverse proxy hides backend headers${NC}"
+  
+  # Tim xem trong cau hinh cua nginx co lenh an header hay khong
+  HIDE_CONF=$(sudo nginx -T 2>/dev/null | grep -vE '^\s*#' | grep -Ei "(proxy|fastcgi)_hide_header")
+
+  HEADERS=$(curl -s -I http://localhost | grep -Ei "^(Server|X-Powered-By)")
+  # Bad header la header khong bat dau bang 'Server: nginx'
+  BAD_HEADERS=$(echo "$HEADERS" | grep -ivE "^Server: nginx")
+
+  if [ -n "$HIDE_CONF" ] && [ -z "$BAD_HEADERS" ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: Sensitive backend headers are suppressed."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: Exposed backend headers detected:"
+    echo -e "${YELLOW}${BAD_HEADERS}${NC}"
+    echo "REMEDIATION: Add these directives to your 'location /' block:"
+    echo -e "  ${YELLOW}proxy_hide_header X-Powered-By;${NC}"
+    echo -e "  ${YELLOW}proxy_hide_header Server;${NC}"
+    echo -e "If using PHP-FPM, use: ${YELLOW}fastcgi_hide_header X-Powered-By;${NC}"
+  fi
+
+  echo ""
+}
+
+
 
 # Goi cac ham audit
 audit_1_1_1
@@ -549,3 +577,4 @@ audit_2_4_4
 audit_2_5_1
 audit_2_5_2
 audit_2_5_3
+audit_2_5_4
