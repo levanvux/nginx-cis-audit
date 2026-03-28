@@ -301,6 +301,37 @@ audit_2_3_3() {
   echo ""
 }
 
+# 2.4 Network Configuration
+# 2.4.1 Ensure NGINX only listens for network connections on authorized ports (Manual)
+audit_2_4_1() {
+  echo -e "${PURPLE}[2.4.1] Ensure NGINX only listens on authorized ports${NC}"
+  
+  LISTEN_CONF=$(sudo nginx -T 2>/dev/null | grep -i "listen" | grep -v "^ *#" | sort -u)
+  if [ -z "$LISTEN_CONF" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: No active 'listen' directives found. NGINX might not be serving any traffic."
+    return
+  fi 
+
+  UNAUTHORIZED=$(sudo netstat -tulpen | grep -i nginx | grep -vE ":80 |:443 ")
+  if [ -z "$UNAUTHORIZED" ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: NGINX is only listening on standard ports (80/443)."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: NGINX is listening on potentially unauthorized ports:"
+    echo -e "${RED}${UNAUTHORIZED}${NC}"
+
+    echo -e "${BLUE}REMEDIATION:${NC}"
+    echo " 1. Review the 'listen' directives above."
+    echo " 2. Comment out (#) any ports like 8080, 8443 unless explicitly authorized."
+    echo " 3. For HTTP/3, ensure UDP 443 is authorized."
+    echo " 4. Restart NGINX: sudo systemctl restart nginx"
+  fi
+ 
+  echo ""
+}
+
 # Goi cac ham audit
 audit_1_1_1
 audit_1_2_1
@@ -315,3 +346,5 @@ audit_2_2_3
 audit_2_3_1
 audit_2_3_2
 audit_2_3_3
+
+audit_2_4_1
