@@ -420,7 +420,7 @@ audit_2_4_4() {
   else
     echo -e "STATUS: [${RED}FAIL${NC}]"
     if [ -z "$SEND_TIMEOUT_VAL" ]; then
-      echo "Detail: send_timeout is not explicitly set (NGINX default is 60s)."
+      echo "Detail: send_timeout is not explicitly set."
     else
       echo "Detail: Current value '$SEND_TIMEOUT_VAL' is out of the recommended range (1-10s)."
     fi
