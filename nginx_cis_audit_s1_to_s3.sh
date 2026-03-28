@@ -382,6 +382,7 @@ audit_2_4_3() {
   if [ -n "$KEEPALIVE_VAL" ] && [ "$KEEPALIVE_VAL" -gt 0 ] && [ "$KEEPALIVE_VAL" -le 10 ]; then
     echo -e "STATUS: [${GREEN}PASS${NC}]"
     echo "Detail: keepalive_timeout is correctly set to $KEEPALIVE_VAL seconds."
+    echo ""
     return 0
   else
     echo -e "STATUS: [${RED}FAIL${NC}]"
@@ -391,6 +392,48 @@ audit_2_4_3() {
       echo "Detail: Current value '$KEEPALIVE_VAL' is out of the recommended range (1-10s)."
     fi
   fi
+
+  echo "REMEDIATION:"
+  echo " 1. Locate your NGINX configuration file (e.g., /etc/nginx/nginx.conf)."
+  echo " 2. Add or update the 'keepalive_timeout' directive in the 'http' or 'server' block as follows:"
+  echo -e "   ${YELLOW}keepalive_timeout 10;${NC}"
+  echo " 3. Test the configuration for syntax errors:"
+  echo -e "   ${YELLOW}sudo nginx -t${NC}"
+  echo " 4. Reload the NGINX service to apply changes:"
+  echo -e "   ${YELLOW}sudo systemctl reload nginx${NC}"
+
+  echo ""
+}
+
+# 2.4.4 Ensure send_timeout is set to 10 seconds or less, but not 0 (Manual)
+audit_2_4_4() {
+  echo -e "${PURPLE}[2.4.4] Ensure send_timeout is set to 10 seconds or less, but not 0${NC}"
+
+  # Lay gia tri send_timeout trong file cau hinh cua nginx 
+  SEND_TIMEOUT_VAL=$(sudo nginx -T 2>/dev/null | grep -i "send_timeout" | awk '{print $2}' | tr -d ';' | head -n 1)
+
+  if [ -n "$SEND_TIMEOUT_VAL" ] && [ "$SEND_TIMEOUT_VAL" -gt 0 ] && [ "$SEND_TIMEOUT_VAL" -le 10 ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: send_timeout is correctly set to $SEND_TIMEOUT_VAL seconds."
+    echo ""
+    return 0
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    if [ -z "$SEND_TIMEOUT_VAL" ]; then
+      echo "Detail: send_timeout is not explicitly set (NGINX default is 60s)."
+    else
+      echo "Detail: Current value '$SEND_TIMEOUT_VAL' is out of the recommended range (1-10s)."
+    fi
+  fi
+
+  echo "REMEDIATION:"
+  echo " 1. Open your NGINX configuration file (e.g., /etc/nginx/nginx.conf)."
+  echo " 2. Add or update the 'send_timeout' directive in the 'http' or 'server' block:"
+  echo -e "    ${YELLOW}send_timeout 10;${NC}"
+  echo " 3. Verify the configuration syntax:"
+  echo -e "    ${YELLOW}sudo nginx -t${NC}"
+  echo " 4. Reload NGINX to apply the new settings:"
+  echo -e "    ${YELLOW}sudo systemctl reload nginx${NC}"
 
   echo ""
 }
@@ -413,3 +456,4 @@ audit_2_3_3
 audit_2_4_1
 audit_2_4_2
 audit_2_4_3
+audit_2_4_4
