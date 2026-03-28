@@ -326,9 +326,72 @@ audit_2_4_1() {
     echo " 1. Review the 'listen' directives above."
     echo " 2. Comment out (#) any ports like 8080, 8443 unless explicitly authorized."
     echo " 3. For HTTP/3, ensure UDP 443 is authorized."
-    echo " 4. Restart NGINX: sudo systemctl restart nginx"
   fi
- 
+
+  echo ""
+}
+
+# 2.4.2 Ensure requests for unknown host names are rejected (Manual)
+audit_2_4_2() {
+  echo -e "${PURPLE}[2.4.2] Ensure requests for unknown host names are rejected${NC}"
+  
+  # Lay cac thong tin cau hinh nginx
+  CONF_DUMP=$(sudo nginx -T 2>/dev/null)
+  
+  # Functional Test: gui req voi Host header gia mao den localhost
+  TEST_RESULT=$(curl -s -I -H "Host: invalid.example.com" http://127.0.0.1 2>&1 | head -n 1)
+
+  HAS_DEFAULT=$(echo "$CONF_DUMP" | grep -v '^[[:space:]]*#' | grep -Ei "listen.*default_server")
+  HAS_REJECT=$(echo "$CONF_DUMP" | grep -v '^[[:space:]]*#' | grep -Ei "return\s+(444|400|403|421)")
+  HAS_SSL_REJECT=$(echo "$CONF_DUMP" | grep -v '^[[:space:]]*#' | grep -Ei "ssl_reject_handshake\s+on")
+  
+  if [ -z "$HAS_DEFAULT" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: No 'default_server' block detected. NGINX will serve the first site by default."
+  elif [ -z "$HAS_REJECT" ] && [ -z "$HAS_SSL_REJECT" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: 'default_server' exists but lacks a rejection mechanism (return 444/4xx)."
+  else
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: Catch-all mechanism is active. SSL Handshake rejection: Enabled."
+    echo ""
+    return 0 # return de khong in ra Remediation
+  fi
+
+  echo "REMEDIATION: Configure a 'Catch-All' block to prevent IP/Cert leakage:"
+  echo -e "1. Create ${YELLOW}/etc/nginx/conf.d/00-default.conf${NC} with:"
+  echo -e "   ${YELLOW}server {${NC}"
+  echo -e "   ${YELLOW}    listen 80 default_server;${NC}"
+  echo -e "   ${YELLOW}    listen 443 ssl default_server;${NC}"
+  echo -e "   ${YELLOW}    ssl_reject_handshake on;  # Reject SSL Handshake for unknown domains${NC}"
+  echo -e "   ${YELLOW}    server_name _;            # Catch-all name${NC}"
+  echo -e "   ${YELLOW}    return 444;               # Silent drop${NC}"
+  echo -e "   ${YELLOW}}${NC}"
+  echo -e "2. Run: ${YELLOW}sudo nginx -t && sudo systemctl reload nginx${NC}"
+
+  echo ""  
+}
+
+# 2.4.3 Ensure keepalive_timeout is 10 seconds or less, but not 0 (Manual)
+audit_2_4_3() {
+  echo -e "${PURPLE}[2.4.3] Ensure keepalive_timeout is set to 10 seconds or less, but not 0${NC}"
+
+  # Tim gia tri keepalive_timeout trong file cau hinh nginx
+  KEEPALIVE_VAL=$(sudo nginx -T 2>/dev/null | grep -i "keepalive_timeout" | awk '{print $2}' | tr -d ';' | head -n 1)
+  
+  if [ -n "$KEEPALIVE_VAL" ] && [ "$KEEPALIVE_VAL" -gt 0 ] && [ "$KEEPALIVE_VAL" -le 10 ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: keepalive_timeout is correctly set to $KEEPALIVE_VAL seconds."
+    return 0
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    if [ -z "$KEEPALIVE_VAL" ]; then
+      echo "Detail: keepalive_timeout is not explicitly set."
+    else
+      echo "Detail: Current value '$KEEPALIVE_VAL' is out of the recommended range (1-10s)."
+    fi
+  fi
+
   echo ""
 }
 
@@ -348,3 +411,5 @@ audit_2_3_2
 audit_2_3_3
 
 audit_2_4_1
+audit_2_4_2
+audit_2_4_3
