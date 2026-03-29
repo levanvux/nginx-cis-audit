@@ -552,6 +552,85 @@ audit_2_5_4() {
   echo ""
 }
 
+# 3 Logging
+# 3.1 Ensure detailed logging is enabled (Manual)
+audit_3_1() {
+  echo -e "${PURPLE}[3.1] Ensure detailed logging is enabled${NC}"
+
+  NGINX_CONF=$(sudo nginx -T 2>/dev/null)
+   
+  # Lay log_format tu cau hinh cua nginx
+  LOG_FORMAT=$(echo "$NGINX_CONF" | grep -i "log_format")
+ 
+  # Lay access_log (noi chua log va log su dung format nao)
+  ACCESS_LOG=$(echo "$NGINX_CONF" | grep "access_log")
+
+  if [ -z "$LOG_FORMAT" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]" 
+    echo "Detail: No custom log_format defined."
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Add a detailed log_format in http block:${NC}"
+    echo -e "log_format main '\$remote_addr - \$remote_user [\$time_iso8601] \"\$request\" \$status \"\$http_user_agent\"';"
+
+    echo ""
+    return
+  fi 
+
+  REQUIRED_FIELDS=("time_iso8601" "remote_addr" "request" "status" "http_user_agent")
+  MISSING_FIELDS=()
+
+  for field in "${REQUIRED_FIELDS[@]}"; do
+    echo "$LOG_FORMAT" | grep -q "$field"
+    if [ $? -ne 0 ]; then
+      MISSING_FIELDS+=("$field")
+    fi
+  done 
+
+  # Kiem tra xem access_log co su dung log_format nao khong
+  FORMAT_USED=$(echo "$ACCESS_LOG" | awk '{print $3}')
+
+  if [ -z "$FORMAT_USED" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: access_log is not using a custom format."
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Update access_log to use defined log_format:${NC}"
+    echo -e "access_log /var/log/nginx/access.log main;"
+
+    echo ""
+    return
+  fi
+
+  if [ ${#MISSING_FIELDS[@]} -eq 0 ]; then
+    echo -e "STATUS: [${GREEN}PASS${NC}]"
+    echo "Detail: Logging has required fields."
+  else
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: Missing required log fields:"
+    for f in "${MISSING_FIELDS[@]}"; do
+      echo -e "  ${YELLOW}$f${NC}"
+    done
+    
+    echo "REMEDIATION: Update log_format to include missing fields:"
+    echo -e "${YELLOW}  log_format main '\$remote_addr - \$remote_user [\$time_iso8601] \"\$request\" \$status \"\$http_user_agent\"';${NC}"
+  fi
+  
+  echo ""
+}
+
+# 3.2 Ensure access logging is enabled (Manual)
+audit_3_2() {
+  echo ""
+}
+
+# 3.3 Ensure error logging is enabled and set to the info logging level (Manual)
+audit_3_3() {
+  echo ""
+}
+
+# 3.4 Ensure proxies pass source IP information (Manual)
+audit_3_4() {
+  echo ""
+}
 
 
 # Goi cac ham audit
@@ -578,3 +657,8 @@ audit_2_5_1
 audit_2_5_2
 audit_2_5_3
 audit_2_5_4
+
+audit_3_1
+audit_3_2
+audit_3_3
+audit_3_4
