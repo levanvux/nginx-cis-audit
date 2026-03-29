@@ -4,7 +4,7 @@
 
 This project applies security best practices from the Center for Internet Security (CIS) NGINX Benchmark to harden an NGINX server.
 
-Scope: Section 1 → Section 3
+Scope: Section 1 -> Section 3
 
 ## Objectives
 
