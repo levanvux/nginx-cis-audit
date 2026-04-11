@@ -560,7 +560,7 @@ audit_3_1() {
   NGINX_CONF=$(sudo nginx -T 2>/dev/null)
    
   # Lay log_format tu cau hinh cua nginx
-  LOG_FORMAT=$(echo "$NGINX_CONF" | grep -i "log_format")
+  LOG_FORMAT=$(echo "$NGINX_CONF" | sed -n '/log_format/,/;/p')
  
   # Lay access_log (noi chua log va log su dung format nao)
   ACCESS_LOG=$(echo "$NGINX_CONF" | grep "access_log")
@@ -576,7 +576,7 @@ audit_3_1() {
     return
   fi 
 
-  REQUIRED_FIELDS=("time_iso8601" "remote_addr" "request" "status" "http_user_agent")
+  REQUIRED_FIELDS=("time_iso8601" "remote_user" "remote_addr" "request" "status" "http_user_agent")
   MISSING_FIELDS=()
 
   for field in "${REQUIRED_FIELDS[@]}"; do
@@ -724,6 +724,68 @@ audit_3_3() {
 
 # 3.4 Ensure proxies pass source IP information (Manual)
 audit_3_4() {
+  echo -e "${PURPLE}[3.4] Ensure proxies pass source IP information${NC}"
+
+  NGINX_CONF=$(sudo nginx -T 2>/dev/null)
+
+  # Kiem tra xem Nginx co duoc dung lam Proxy khong
+  PROXY_PASS=$(echo "$NGINX_CONF" | grep -i "proxy_pass")
+
+  if [ -z "$PROXY_PASS" ]; then
+    echo -e "STATUS: [${BLUE}SKIP${NC}]"
+    echo "Detail: No proxy_pass found (not acting as reverse proxy)."
+
+    echo ""
+    return
+  fi
+
+  # Lay cac header lien quan cua Proxy
+  XFF=$(echo "$NGINX_CONF" | grep -i "proxy_set_header X-Forwarded-For")
+  XREAL=$(echo "$NGINX_CONF" | grep -i "proxy_set_header X-Real-IP")
+
+  if [ -z "$XFF" ] || [ -z "$XREAL" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: Missing required proxy headers."
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Add these headers in your proxy location:${NC}"
+    echo "proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
+    echo "proxy_set_header X-Real-IP \$remote_addr;"
+
+    echo ""
+    return
+  fi
+
+  # Check gia tri cua X-Forwarded-For co khac voi 2 gia tri ben duoi khong
+  BAD_XFF=$(echo "$XFF" | grep -viP '\$proxy_add_x_forwarded_for|\$remote_addr')
+  if [ -n "$BAD_XFF" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: X-Forwarded-For is not set correctly."
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Use one of the following:${NC}"
+    echo "proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
+    echo "or"
+    echo "proxy_set_header X-Forwarded-For \$remote_addr;"
+
+    echo ""
+    return
+  fi
+
+  # Check xem gia tri cua X-Real-IP co khac voi gia tri ben duoi khong
+  BAD_XREAL=$(echo "$XREAL" | grep -vi '\$remote_addr')
+  if [ -n "$BAD_XREAL" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: X-Real-IP is not set to \$remote_addr."
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Set correct value:${NC}"
+    echo "proxy_set_header X-Real-IP \$remote_addr;"
+
+    echo ""
+    return
+  fi
+
+  echo -e "STATUS: [${GREEN}PASS${NC}]"
+  echo "Detail: Proxy headers are correctly configured."
+
   echo ""
 }
 
