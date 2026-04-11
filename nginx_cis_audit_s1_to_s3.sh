@@ -595,7 +595,6 @@ audit_3_1() {
     echo "REMEDIATION:"
     echo -e "${YELLOW}Update access_log to use defined log_format:${NC}"
     echo -e "access_log /var/log/nginx/access.log main;"
-
     echo ""
     return
   fi
@@ -610,7 +609,7 @@ audit_3_1() {
       echo -e "  ${YELLOW}$f${NC}"
     done
     
-    echo "REMEDIATION: Update log_format to include missing fields:"
+    echo "REMEDIATION: Update log_format to include missing fields (default location: /etc/nginx/nginx.conf):"
     echo -e "${YELLOW}  log_format main '\$remote_addr - \$remote_user [\$time_iso8601] \"\$request\" \$status \"\$http_user_agent\"';${NC}"
   fi
   
@@ -619,6 +618,43 @@ audit_3_1() {
 
 # 3.2 Ensure access logging is enabled (Manual)
 audit_3_2() {
+  echo -e "${PURPLE}[3.2] Ensure access logging is enabled${NC}"
+
+  # Tim access_log trong file cau hinh Nginx
+  ACCESS_LOG_LINES=$(echo "$NGINX_CONF" | grep -i "access_log")
+  if [ -z "$ACCESS_LOG_LINES" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: No access_log directive found."
+
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Enable access logging in http block:${NC}"
+    echo -e "access_log /var/log/nginx/access.log main;"
+
+    echo ""
+    return
+  fi
+  
+  # Tim xem co 'access_log off' nao o global khong
+  GLOBAL_OFF=$(echo "$NGINX_CONF" | grep -iE "http\s*{[^}]*access_log off" -z)
+  # Tim xem trong cac server block co 'access_log off' nao khong
+  SERVER_OFF=$(echo "$NGINX_CONF" | grep -iE "server\s*{[^}]*access_log off" -z)
+
+  if [ -n "$GLOBAL_OFF" ] || [ -n "$SERVER_OFF" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: access_log is disabled in http/server block (critical)."
+
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Remove 'access_log off;' from global or server blocks.${NC}"
+    echo -e "Use instead:"
+    echo -e "access_log /var/log/nginx/access.log main;"
+
+    echo ""
+    return
+  fi
+
+  echo -e "STATUS: [${GREEN}PASS${NC}]"
+  echo "Detail: access logging is properly enabled."
+
   echo ""
 }
 
