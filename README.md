@@ -47,7 +47,7 @@ chmod +x nginx_cis_audit_s1_to_s3.sh
 sudo ./nginx_cis_audit_s1_to_s3.sh
 ```
 
-# Output
+## Output
 
 The script evaluates then prints results in the following format:
 - `PASS`: Configuration complies with CIS Benchmark
