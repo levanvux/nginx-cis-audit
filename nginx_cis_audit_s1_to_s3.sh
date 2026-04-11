@@ -570,7 +570,7 @@ audit_3_1() {
     echo "Detail: No custom log_format defined."
     echo "REMEDIATION:"
     echo -e "${YELLOW}Add a detailed log_format in http block:${NC}"
-    echo -e "log_format main '\$remote_addr - \$remote_user [\$time_iso8601] \"\$request\" \$status \"\$http_user_agent\"';"
+    echo "log_format main '\$remote_addr - \$remote_user [\$time_iso8601] \"\$request\" \$status \"\$http_user_agent\"';"
 
     echo ""
     return
@@ -594,7 +594,7 @@ audit_3_1() {
     echo "Detail: access_log is not using a custom format."
     echo "REMEDIATION:"
     echo -e "${YELLOW}Update access_log to use defined log_format:${NC}"
-    echo -e "access_log /var/log/nginx/access.log main;"
+    echo "access_log /var/log/nginx/access.log main;"
     echo ""
     return
   fi
@@ -620,15 +620,16 @@ audit_3_1() {
 audit_3_2() {
   echo -e "${PURPLE}[3.2] Ensure access logging is enabled${NC}"
 
+  NGINX_CONF=$(sudo nginx -T 2>/dev/null)
+
   # Tim access_log trong file cau hinh Nginx
   ACCESS_LOG_LINES=$(echo "$NGINX_CONF" | grep -i "access_log")
   if [ -z "$ACCESS_LOG_LINES" ]; then
     echo -e "STATUS: [${RED}FAIL${NC}]"
     echo "Detail: No access_log directive found."
-
     echo "REMEDIATION:"
     echo -e "${YELLOW}Enable access logging in http block:${NC}"
-    echo -e "access_log /var/log/nginx/access.log main;"
+    echo "access_log /var/log/nginx/access.log main;"
 
     echo ""
     return
@@ -642,11 +643,10 @@ audit_3_2() {
   if [ -n "$GLOBAL_OFF" ] || [ -n "$SERVER_OFF" ]; then
     echo -e "STATUS: [${RED}FAIL${NC}]"
     echo "Detail: access_log is disabled in http/server block (critical)."
-
     echo "REMEDIATION:"
     echo -e "${YELLOW}Remove 'access_log off;' from global or server blocks.${NC}"
     echo -e "Use instead:"
-    echo -e "access_log /var/log/nginx/access.log main;"
+    echo "access_log /var/log/nginx/access.log main;"
 
     echo ""
     return
@@ -660,6 +660,65 @@ audit_3_2() {
 
 # 3.3 Ensure error logging is enabled and set to the info logging level (Manual)
 audit_3_3() {
+  echo -e "${PURPLE}[3.3] Ensure error logging is enabled and set to info level${NC}"
+  
+  NGINX_CONF=$(sudo nginx -T 2>/dev/null)
+
+  # Tim 'error_log' trong file cau hinh cua Nginx
+  ERROR_LOG_LINES=$(echo "$NGINX_CONF" | grep -i "error_log")
+
+  if [ -z "$ERROR_LOG_LINES" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: No error_log directive found."
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Add error_log in main context:${NC}"
+    echo "error_log /var/log/nginx/error.log notice;"
+
+    echo ""
+    return
+  fi
+
+  # Kiem tra xem dau ra cua error_log co phai /dev/null khong
+  DEV_NULL=$(echo "$ERROR_LOG_LINES" | grep -i "/dev/null")
+
+  if [ -n "$DEV_NULL" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: error_log is directed to /dev/null (logging disabled)."
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Update error_log to a valid file:${NC}"
+    echo "error_log /var/log/nginx/error.log notice;"
+
+    echo ""
+    return
+  fi
+
+  # Kiem tra level cua cac error_log 
+  BAD_LEVEL=$(echo "$ERROR_LOG_LINES" | grep -Ei "\b(emerg|alert|crit)\b")
+  GOOD_LEVEL=$(echo "$ERROR_LOG_LINES" | grep -Ei "\b(info|notice)\b")
+
+  if [ -n "$BAD_LEVEL" ]; then
+    echo -e "STATUS: [${RED}FAIL${NC}]"
+    echo "Detail: error_log level is too high (emerg/alert/crit), suppressing useful logs."
+    echo "REMEDIATION:"
+    echo -e "${YELLOW}Set log level to notice or info:${NC}"
+    echo "error_log /var/log/nginx/error.log notice;"
+
+    echo ""
+    return
+  fi
+
+  # Kiem tra xem co error_log nao co level la error (default) khong 
+  DEFAULT_LEVEL=$(echo "$ERROR_LOG_LINES" | grep -Ei "\berror\b")
+
+  if [ -n "$DEFAULT_LEVEL" ] && [ -z "$GOOD_LEVEL" ]; then
+    echo -e "STATUS: [${BLUE}INFO${NC}]"
+    echo "Detail: error_log level is 'error' (default), may miss important events."
+    echo "Recommendation: Use 'notice' or 'info' for better visibility."
+  fi
+
+  echo -e "STATUS: [${GREEN}PASS${NC}]"
+  echo "Detail: error logging is properly configured with sufficient level."
+
   echo ""
 }
 
